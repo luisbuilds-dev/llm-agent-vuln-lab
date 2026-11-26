@@ -1,0 +1,46 @@
+rules:
+  - id: llm-tool-arg-to-sql
+    mode: taint
+    languages: [python]
+    severity: ERROR
+    message: >-
+      A tool argument chosen by the model reaches the SQL text of execute().
+      Anyone who can steer the model (prompt or retrieved content) controls
+      this query. Pass the value as a bound parameter instead.
+    metadata:
+      cwe: "CWE-89: SQL Injection"
+      owasp-llm: "LLM05:2025 Improper Output Handling"
+    pattern-sources:
+      - patterns:
+          - pattern-inside: |
+              def $TOOL($DB, $ARGS, $CTX):
+                ...
+          - pattern: $ARGS[...]
+    pattern-sinks:
+      - patterns:
+          - pattern-inside: $CONN.execute($SQL, ...)
+          - focus-metavariable: $SQL
+
+  - id: tool-call-without-authorize
+    languages: [python]
+    severity: WARNING
+    message: >-
+      A tool chosen by the model is dispatched in a function that never calls
+      authorize(). The model's choice is untrusted; check it against the
+      session before running it. (Heuristic: it only proves that authorize()
+      is called, not that it checks the right things.)
+    metadata:
+      cwe: "CWE-862: Missing Authorization"
+      owasp-llm: "LLM06:2025 Excessive Agency"
+    patterns:
+      - pattern: TOOLS[$NAME](...)
+      - pattern-not-inside: |
+          def $F(...):
+            ...
+            $R = authorize(...)
+            ...
+      - pattern-not-inside: |
+          def $F(...):
+            ...
+            authorize(...)
+            ...
